@@ -38,11 +38,12 @@ def prepare_data(data_path, tgt_timbre, cond_timbre):
     #     cond_specs = np.load(cond_specs_path)
 
     # split the train and val path before converting to spectrograms
-    train_path, val_path = split_train_val(all_audio_paths)
-
+    train_paths, val_paths = split_train_val(all_audio_paths)
+    print("Train paths:", train_paths)
+    print("Val paths:", val_paths)
     # convert the train and val path to spectrograms
-    train_specs = create_tf_dataset(train_path)
-    val_specs = create_tf_dataset(val_path)
+    train_specs = create_tf_dataset(train_paths)
+    val_specs = create_tf_dataset(val_paths)
 
     # train_tgt_specs = tgt_specs[train_idxs]
     # train_cond_specs = cond_specs[train_idxs]
@@ -159,6 +160,7 @@ def main():
     trained_model = train_model(
         train_specs=train_specs,
         val_specs=val_specs,
+        model_path=args.model_path,
         log_path=log_path, 
         checkpoint_path=checkpoint_path, 
         lr=args.lr, 

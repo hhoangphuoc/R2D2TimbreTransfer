@@ -36,6 +36,12 @@ def denorm_tensor(audio,max_val,min_val):
 
     # return (audio * (max_val-min_val))+min_val
 
+def kernel_init(scale):
+    scale = max(scale, 1e-10)
+    return keras.initializers.VarianceScaling(
+        scale, mode="fan_avg", distribution="uniform"
+)
+
 def get_audio_track_diff(cond_track_path, diff_steps=20):
     cond_track = read_audio(cond_track_path)
     # Remove audio Channel and add Batch Dimension

@@ -16,7 +16,7 @@ from keras import layers
 from params.model_params import *
 from utils.model_utils import plot_to_image, denorm_tensor, kernel_init
 from utils.audio_utils import calculate_spectrogram
-from preprocess.dataset_prep import convert_specs_to_tensor
+from dataset_prep import convert_specs_to_tensor
 from modules.embeddings import sinusoidal_embedding
 from modules.blocks import ResidualBlock, DownBlock, UpBlock, AttentionBlock
 

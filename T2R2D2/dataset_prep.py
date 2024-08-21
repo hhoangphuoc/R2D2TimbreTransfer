@@ -10,23 +10,32 @@
 import tensorflow as tf
 import numpy as np
 import os
-import tensorflow_io as tfio
+# import tensorflow_io as tfio
 from tqdm import tqdm
 import params.audio_params as aprs #parameters for audio processing
 import params.model_params as mprs #parameters for the model
-from utils.audio_utils import calculate_spectrogram, normalise_audio, normalise_mel, load_audio, norm_audio_tensor, denorm_tensor, convert_specs_to_tensor
+from utils.audio_utils import calculate_spectrogram, normalise_mel, read_audio, norm_audio_tensor, denorm_audio_tensor, normalise_spec_shape, convert_specs_to_tensor
 import argparse
 
 ################################################
 # Audio to Mel Spectrogram Processing Functions
 ################################################
 
-def audio_to_mel(audio_path, sample_rate=aprs.SAMPLE_RATE, n_mels=aprs.N_MEL_CHANNELS, do_normalise=True):
+def audio_to_mel(
+    audio_path, 
+    sample_rate=aprs.SAMPLE_RATE, 
+    n_mels=aprs.N_MEL_CHANNELS, 
+    do_normalise=True,
+    mel_spec_shape=aprs.MEL_SPEC_TARGET_SHAPE
+):
     """
     Convert audio to mel spectrogram
     and normalise it
     """
-    audio = load_audio(audio_path=audio_path, resample=True, sample_rate=sample_rate) #load audio
+    # audio = load_audio(audio_path=audio_path, resample=True, sample_rate=sample_rate) #load audio
+
+    #change to read_audio because using tensor
+    audio = read_audio(audio_path=audio_path, resample=True, sample_rate=sample_rate)
 
     if do_normalise:
         audio, max_val, min_val = norm_audio_tensor(audio)
@@ -35,59 +44,112 @@ def audio_to_mel(audio_path, sample_rate=aprs.SAMPLE_RATE, n_mels=aprs.N_MEL_CHA
     audio = tf.expand_dims(tf.squeeze(audio), axis=0)
 
     mel_spec = calculate_spectrogram(audio, n_mels=n_mels)
-    # normalised_mel_spec = normalise_mel(mel_spec) #normalise mel spectrogram
-    # return normalised_mel_spec
+    mel_spec = normalise_spec_shape(mel_spec, target_shape=mel_spec_shape)
+
+    if mel_spec.shape != mel_spec_shape:
+        raise ValueError(f"Mel spectrogram shape is not fit {aprs.MEL_SPEC_TARGET_SHAPE}")
+
     return mel_spec
 
-def generate_mel_specs(root_path=params.DATASET_PATH, timbre_name="r2d2", sample_rate=params.SAMPLE_RATE, n_mels=params.N_MEL_CHANNELS, do_normalise=True):
+def generate_mel_specs(
+    audio_files_path, 
+    sample_rate=aprs.SAMPLE_RATE, 
+    n_mels=aprs.N_MEL_CHANNELS, 
+    do_normalise=True,
+    mel_spec_shape=aprs.MEL_SPEC_TARGET_SHAPE
+):
     """
-    Generate dataset of audio files and return a list of mel spectrograms
-    that corresponds to the dataset
+    Expected to generate a list of mel-spectrograms
+    from the list of audio files, given by the path to the audio files (i.e. the audio_files_path)
+    Input: ['/path/to/target1.wav', '/path/to/target2.wav',...]
+    Output: [tgt_spec1, tgt_spec2, ...]
     """
-    dataset_specs = []
-    data_path = os.path.join(root_path, timbre_name)
-    for audio_file in tqdm(os.listdir(data_path), desc="Generating mel spectrograms for {}".format(timbre_name)):
-        if audio_file.endswith(".wav"):
-            audio_path = os.path.join(data_path, audio_file)
+    specs = []
+    for audio_path in tqdm(audio_files_path, desc="Generating mel spectrograms"):
+        if audio_path.endswith(".wav"):
             try:
                 #convert audio to mel spectrogram
                 mel_spec = audio_to_mel(audio_path, sample_rate, n_mels, do_normalise)
-                
-                mel_spec = normalise_spec_shape(mel_spec)
-
-                if mel_spec.shape != aprs.MEL_SPEC_TARGET_SHAPE:
-                    raise ValueError(f"Mel spectrogram shape is not fit {aprs.MEL_SPEC_TARGET_SHAPE}")
-                else:
-                    dataset_specs.append(mel_spec)
             
             except Exception as e:
                 print(f"Error processing {audio_file}: {e}")
 
-    return np.array(dataset_specs) #return the dataset as a numpy array
+    return np.array(specs) #return the numpy array of mel-spectrograms
 
-def prepare_spectrograms(data_path="./data_specs/", tgt_timbre="r2d2", cond_timbre="vn", sr=aprs.SAMPLE_RATE, n_mel_channels=aprs.N_MEL_CHANNELS, specs_config=False, do_normalise=True):
-    """
-    Prepare the dataset from the audio files to mel-spectrograms 
-    and save them to the dataset folder
-    This is used to convert audio files from .wav in the dataset folder to mel-spectrograms
-    and return the combined mel-spectrograms of both target and condition timbres
-    """
-    # Get the list of audio files
-    tgt_specs = generate_mel_specs(data_path=data_path, timbre_name=tgt_timbre, sample_rate=sr, n_mels=n_mel_channels, do_normalise=do_normalise)
-    cond_specs = generate_mel_specs(data_path=data_path, timbre_name=cond_timbre, sample_rate=sr, n_mels=n_mel_channels, do_normalise=do_normalise)
+# def prepare_spectrograms(data_path="./data_specs/", tgt_timbre="r2d2", cond_timbre="vn", sr=aprs.SAMPLE_RATE, n_mel_channels=aprs.N_MEL_CHANNELS, specs_config=False, do_normalise=True):
+#     """
+#     Prepare the dataset from the audio files to mel-spectrograms 
+#     and save them to the dataset folder
+#     This is used to convert audio files from .wav in the dataset folder to mel-spectrograms
+#     and return the combined mel-spectrograms of both target and condition timbres
+#     """
+#     # Get the list of audio files
+#     tgt_specs = generate_mel_specs(root_path==data_path, timbre_name=tgt_timbre, sample_rate=sr, n_mels=n_mel_channels, do_normalise=do_normalise)
+#     cond_specs = generate_mel_specs(root_path==data_path, timbre_name=cond_timbre, sample_rate=sr, n_mels=n_mel_channels, do_normalise=do_normalise)
 
-    # Convert to Tensorflow Tensors
-    tgt_specs = convert_specs_to_tensor(tgt_specs)
-    cond_specs = convert_specs_to_tensor(cond_specs)
+#     # Convert to Tensorflow Tensors
+#     tgt_specs = convert_specs_to_tensor(tgt_specs)
+#     cond_specs = convert_specs_to_tensor(cond_specs)
 
-    if do_normalise:
-        tgt_specs, _, _ = norm_audio_tensor(tgt_specs)
-        cond_specs, _, _ = norm_audio_tensor(cond_specs)
+#     if do_normalise:
+#         tgt_specs, _, _ = norm_audio_tensor(tgt_specs)
+#         cond_specs, _, _ = norm_audio_tensor(cond_specs)
 
-    #combine the two spectrograms into one
-    return tf.concat([tgt_specs, cond_specs], axis=-1) #TODO - check if return 2 specs seperately better or not?
+#     #combine the two spectrograms into one
+#     return tf.concat([tgt_specs, cond_specs], axis=-1) #TODO - check if return 2 specs seperately better or not?
 
     # return tgt_specs, cond_specs
+def prepare_pair_specs(
+    pair_audio_paths, 
+    sr=aprs.SAMPLE_RATE, 
+    n_mel_channels=aprs.N_MEL_CHANNELS, 
+    do_normalise=True,
+    mel_spec_shape=aprs.MEL_SPEC_TARGET_SHAPE
+):
+    """
+    Prepare the mel-spectrograms from the pairs of target and condition audio files
+    Input: ['/path/to/target1.wav', '/path/to/condition1.wav']
+    Output: [tgt_spec, cond_spec]
+    """
+    tgt_audio_path = pair_audio_paths[0]
+    cond_audio_path = pair_audio_paths[1]
+
+    print("Target audio files:", tgt_audio_path)
+    print("Conditioning audio files:", cond_audio_path)
+    
+    try:
+        tgt_spec = audio_to_mel(
+            tgt_audio_path, 
+            sample_rate=sr, 
+            n_mels=n_mel_channels, 
+            do_normalise=do_normalise,
+            mel_spec_shape=mel_spec_shape
+        )
+    except Exception as e:
+        print(f"Error processing target audio file {tgt_audio_path}: {str(e)}")
+        return None
+
+    try:
+        cond_spec = audio_to_mel(
+            cond_audio_path, 
+            sample_rate=sr, 
+            n_mels=n_mel_channels, 
+            do_normalise=do_normalise, 
+            mel_spec_shape=mel_spec_shape
+        )
+    except Exception as e:
+        print(f"Error processing condition audio file {cond_audio_path}: {str(e)}")
+        return None
+
+    #convert to tensor
+    tgt_spec = tf.convert_to_tensor(tgt_spec)
+    cond_spec = tf.convert_to_tensor(cond_spec)
+
+    if do_normalise:
+        tgt_spec, _, _ = norm_audio_tensor(tgt_spec)
+        cond_spec, _, _ = norm_audio_tensor(cond_spec)
+    
+    return tf.concat([tgt_spec, cond_spec], axis=-1)
 
 #------------------------------------------------
 
@@ -99,8 +161,11 @@ def load_all_audio_files(data_path="./data_specs/", tgt_timbre="r2d2", cond_timb
     """
     Return: list of paths to all audio files of pairs: [target files, condition files]
     """
-    tgt_audio_files = os.listdir(os.path.join(data_path, tgt_timbre))
-    cond_audio_files = os.listdir(os.path.join(data_path, cond_timbre))
+    tgt_data_path = os.path.join(data_path, tgt_timbre) # ./data_specs/r2d2
+    cond_data_path = os.path.join(data_path, cond_timbre) # ./data_specs/vn
+
+    tgt_audio_files = os.listdir(tgt_data_path) # all r2d2 audio files
+    cond_audio_files = os.listdir(cond_data_path) # all vn audio files 
 
     tgt_audio_files = [f for f in tgt_audio_files if f.endswith('.wav')]
     cond_audio_files = [f for f in cond_audio_files if f.endswith('.wav')]
@@ -111,7 +176,7 @@ def load_all_audio_files(data_path="./data_specs/", tgt_timbre="r2d2", cond_timb
     cond_audio_files.sort()
 
     all_tracks = [[os.path.join(tgt_data_path, t), os.path.join(cond_data_path, f)] for t, f in zip(tgt_audio_files, cond_audio_files)]
-
+    print(f"All tracks: {all_tracks}")
     return all_tracks
 
 def split_train_val(all_audio_paths, val_perc=0.2):
@@ -122,18 +187,34 @@ def split_train_val(all_audio_paths, val_perc=0.2):
     train_idxs = idxs[:n_train]
     val_idxs = idxs[n_train:]
 
-    train_path = [all_audio_paths[i][0] for i in train_idxs]
-    val_path = [all_audio_paths[i][0] for i in val_idxs]
-    return train_path, val_path
+    train_paths = np.array(all_audio_paths)[train_idxs].tolist()
+    val_paths = np.array(all_audio_paths)[val_idxs].tolist()
+    return train_paths, val_paths
 
-def create_tf_dataset(all_audio_paths, batch_size=mprs.BATCH_SIZE, dataset_repetitions=mprs.DATASET_REPETITIONS, training=True):
-    dataset = tf.data.Dataset.from_tensor_slices(all_audio_paths)
+def create_tf_dataset(audio_paths, batch_size=mprs.BATCH_SIZE, dataset_reps=mprs.DATASET_REPETITIONS, training=True):
+    # slice the audio_paths into seperate arrays of [target_audio_path, condition_audio_path]
+    dataset = tf.data.Dataset.from_tensor_slices(audio_paths)
+    print(dataset.as_numpy_iterator())
+    # if training:
+    #     dataset = dataset.shuffle(buffer_size=1000)
+
+    features_dataset = dataset.map(prepare_pair_specs) #map the prepare_pair_specs function to the dataset
+
     if training:
-        # dataset = dataset.shuffle(buffer_size=1000)
-        features_dataset = dataset.map(prepare_spectrograms).repeat(dataset_repetitions).batch(batch_size, drop_remainder=True).prefetch(buffer_size=tf.data.AUTOTUNE)
+        features_dataset = features_dataset.repeat(dataset_reps)
     else:
-        features_dataset = dataset.map(prepare_spectrograms).cache().repeat(int(2*dataset_repetitions)).batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
-
+        features_dataset = features_dataset.cache().repeat(int(2*dataset_reps))
+    
+    features_dataset = features_dataset.batch(batch_size, drop_remainder=True).prefetch(buffer_size=tf.data.AUTOTUNE)
+    
+    # if training:
+    #     # dataset = dataset.shuffle(buffer_size=1000)
+    # #    features_dataset = dataset.map(prepare_spectrograms).repeat(dataset_repetitions).batch(batch_size, drop_remainder=True).prefetch(buffer_size=tf.data.AUTOTUNE)
+    #     features_dataset = dataset.map(prepare_specs).repeat(dataset_reps).batch(batch_size, drop_remainder=True).prefetch(buffer_size=tf.data.AUTOTUNE)
+    
+    # else:
+    #     # features_dataset = dataset.map(prepare_spectrograms).cache().repeat(int(2*dataset_repetitions)).batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
+    #     features_dataset = dataset.map(prepare_specs).cache().repeat(int(2*dataset_reps)).batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
     return features_dataset
 
 #------------------------------------------------

@@ -12,6 +12,7 @@ import tensorflow_hub as hub
 import librosa
 import params.audio_params as aprs
 from tqdm import tqdm
+import soundfile as sf
 
 module = hub.KerasLayer('https://www.kaggle.com/models/google/soundstream/TensorFlow2/mel-decoder-music/1')
 
@@ -48,11 +49,11 @@ def calculate_spectrogram(samples, n_mels=aprs.N_MEL_CHANNELS):
   return output
 
 #-------------------------------------------------------------------------
-def load_audio(audio_path, resample=True, sample_rate=aprs.SAMPLE_RATE):
-    audio, sr = librosa.load(path=audio_path, sr=sample_rate)
-    if resample:
-        audio = librosa.resample(y=audio, orig_sr=sr, target_sr=sample_rate)
-    return audio
+# def load_audio(audio_path, resample=True, sample_rate=aprs.SAMPLE_RATE):
+#     audio, sr = librosa.load(path=audio_path, sr=sample_rate)
+#     if resample:
+#         audio = librosa.resample(y=audio, orig_sr=sr, target_sr=sample_rate)
+#     return audio
 
 # def read_audio(audio_path,resample=True, sample_rate=aprs.SAMPLE_RATE):
 #     audio_bin = tf.io.read_file(audio_path)
@@ -60,6 +61,29 @@ def load_audio(audio_path, resample=True, sample_rate=aprs.SAMPLE_RATE):
 #     if resample:
 #         audio = tfio.audio.resample(audio, rate_in=tf.cast(sr,tf.int64), rate_out=sample_rate, name=None)
 #     return audio
+def read_audio(audio_path, resample=True, sample_rate=aprs.SAMPLE_RATE):
+    # Use soundfile to read the audio file
+    audio, sr = sf.read(audio_path)
+    
+    # Convert to float32 and normalize to [-1, 1]
+    audio = audio.astype(np.float32)
+    audio = audio / np.max(np.abs(audio))
+    
+    # Convert to tensor
+    audio = tf.convert_to_tensor(audio, dtype=tf.float32)
+    
+    if resample and sr != sample_rate:
+        audio = tfio.audio.resample(audio, rate_in=sr, rate_out=sample_rate)
+    
+    # Ensure the audio is mono
+    #if the audio is stereo, convert to mono, reduce the bit-rate
+    if len(audio.shape) > 1:
+        audio = tf.reduce_mean(audio, axis=1)
+    
+    # Add channel dimension
+    audio = tf.expand_dims(audio, axis=-1)
+    
+    return audio
 
 # def normalise_audio(audio):
 #     """Normalize the audio to a range [-1, 1]."""
