@@ -73,7 +73,7 @@ def get_network(mel_spec_size, widths, block_depth,has_attention):
 
     x = layers.Conv2D(N_IMG_CHANNELS, kernel_size=1, kernel_initializer="zeros")(x)
 
-    return keras.Model([noisy_images, noise_variances], x, name="residual_unet")
+    return keras.Model([noisy_images, noise_variances], x, name="residual_unet") #Return as a Keras Model
 
 #-----------------------------------------------------------#
 
