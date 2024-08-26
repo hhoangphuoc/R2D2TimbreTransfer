@@ -34,18 +34,24 @@ class AttentionBlock(layers.Layer):
         k = self.key(inputs)
         v = self.value(inputs)
 
-        attn_score = tf.einsum("bhwc, bHWc->bhwHW", q, k) * scale
+        attn_score = tf.einsum("bhwc, bHWc->bhwHW", q, k) * scale #calculate attention score based on query, key and scale
+
+        #reshape attention score to match the shape of the input
         attn_score = tf.reshape(attn_score, [batch_size, height, width, height * width]) 
 
-        attn_score = tf.nn.softmax(attn_score, -1)
+        #wrap softmax around the attention score, apply to last dimension
+        attn_score = tf.nn.softmax(attn_score, -1) 
         attn_score = tf.reshape(attn_score, [batch_size, height, width, height, width])
 
+        #calculate the projection of the value based on the attention score
         proj = tf.einsum("bhwHW,bHWc->bhwc", attn_score, v)
         proj = self.proj(proj)
+
+        #add the projection to the input
         return inputs + proj
 
 #-----------------------------------------------------------
-# Inputs to the block: [batch_size, height, width, channels]
+# Inputs to the block: [batch_size, height, width, channels] - channels = height * width
 def ResidualBlock(width):
     def apply(x):
         input_width = x.shape[3]

@@ -39,8 +39,8 @@ def prepare_data(data_path, tgt_timbre, cond_timbre):
 
     # split the train and val path before converting to spectrograms
     train_paths, val_paths = split_train_val(all_audio_paths)
-    print("Train paths:", train_paths)
-    print("Val paths:", val_paths)
+    print(f"Train paths: {train_paths} \n")
+    print(f"Val paths: {val_paths} \n")
     # convert the train and val path to spectrograms
     train_specs = create_tf_dataset(train_paths)
     val_specs = create_tf_dataset(val_paths)
@@ -109,9 +109,9 @@ def train_model(
         
         # calculate mean and variance of training dataset for normalization
         diff_model.fit(
-            train_dataset,
+            train_specs, #spectrograms for diffusion model to learn
             epochs=epochs, #default 5000
-            validation_data=val_dataset,
+            validation_data=val_specs, #spectrograms for diffusion model to validate on
             callbacks=[
                 keras.callbacks.LambdaCallback(on_epoch_end=diff_model.plot_images),
                 checkpoint_callback,
@@ -147,8 +147,7 @@ def main():
     args = parser.parse_args()
     print(args)
 
-    #prepare data
-    train_specs, val_specs = prepare_data(args.data_path, args.tgt_timbre, args.cond_timbre) #spectrograms for training and validation
+    #----------------------------------------------------------
 
     #create checkpoint and log paths
     checkpoint_path = "checkpoints/T2R2D2_"+args.cond_timbre+'_to_'+args.tgt_timbre+'_'+ datetime.datetime.now().strftime(
@@ -156,6 +155,11 @@ def main():
     log_dir = 'logs/'
     log_path = log_dir + 'T2R2D2_' + datetime.datetime.now().strftime(
         "%Y%m%d-%H%M%S") + str(args.epochs) + '_'+args.cond_timbre+'_to_'+args.tgt_timbre
+
+
+    #prepare data
+    #spectrograms for training and validation
+    train_specs, val_specs = prepare_data(args.data_path, args.tgt_timbre, args.cond_timbre)
 
     trained_model = train_model(
         train_specs=train_specs,
