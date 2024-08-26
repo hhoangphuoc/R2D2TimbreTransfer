@@ -3,6 +3,9 @@ import argparse
 import shutil
 import glob
 import os
+import librosa
+import params.audio_params as aprs
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--datasource", type=str, default='../../data/urmp/', help="data source of URMP dataset")
@@ -18,7 +21,13 @@ def get_audiosep_ins(ins):
 def urmp_prep_wavs(outdir, instrument_files, instrument):
     os.makedirs(outdir, exist_ok=True)
     for f in tqdm(instrument_files, desc="extracting audio for instrument %s"%instrument):
-        shutil.copy(f, outdir)
+        # shutil.copy(f, outdir)
+        audio, sr = librosa.load(f, sr=aprs.SAMPLE_RATE)
+
+        if sr != aprs.SAMPLE_RATE:
+            audio = librosa.resample(audio, sr, aprs.SAMPLE_RATE)
+        # save the audio to the output directory
+        librosa.output.write_wav(outdir + f, audio, sr)
         
 # trumpet_files = get_audiosep_ins('tpt')
 violin_files = get_audiosep_ins('vn')

@@ -16,15 +16,11 @@ import soundfile as sf
 
 module = hub.KerasLayer('https://www.kaggle.com/models/google/soundstream/TensorFlow2/mel-decoder-music/1')
 
-MEL_BASIS = tf.signal.linear_to_mel_weight_matrix(
-    num_mel_bins=aprs.N_MEL_CHANNELS,
-    num_spectrogram_bins=aprs.N_FFT // 2 + 1,
-    sample_rate=aprs.SAMPLE_RATE,
-    lower_edge_hertz=aprs.MEL_FMIN,
-    upper_edge_hertz=aprs.MEL_FMAX)
 
 def calculate_spectrogram(samples, n_mels=aprs.N_MEL_CHANNELS):
   """Calculate mel spectrogram using the parameters the model expects."""
+  samples = tf.cast(samples, tf.float32)
+
   fft = tf.signal.stft(
       samples,
       frame_length=aprs.WIN_LENGTH,
@@ -33,10 +29,20 @@ def calculate_spectrogram(samples, n_mels=aprs.N_MEL_CHANNELS):
       window_fn=tf.signal.hann_window,
       pad_end=True)
 
-
   fft_modulus = tf.abs(fft)
 
-  output = tf.matmul(fft_modulus, MEL_BASIS)
+  mel_basis = tf.signal.linear_to_mel_weight_matrix(
+    num_mel_bins=aprs.N_MEL_CHANNELS,
+    num_spectrogram_bins=aprs.N_FFT // 2 + 1,
+    sample_rate=aprs.SAMPLE_RATE,
+    lower_edge_hertz=aprs.MEL_FMIN,
+    upper_edge_hertz=aprs.MEL_FMAX)
+
+  #ensure the mel_basis is in the same type as fft_modulus
+  mel_basis = tf.cast(mel_basis, tf.float32)
+
+  output = tf.matmul(fft_modulus, mel_basis)
+#   mel_spectrogram = tf.tensordot(fft_modulus, mel_basis, 1)
 
   output = tf.clip_by_value(
       output,
@@ -45,8 +51,8 @@ def calculate_spectrogram(samples, n_mels=aprs.N_MEL_CHANNELS):
       )
 
   # Add a small constant to avoid log(0)
-  output = tf.math.log(output + 1e-6)
-  return output
+  log_output = tf.math.log(output + 1e-6)
+  return log_output
 
 #-------------------------------------------------------------------------
 # def load_audio(audio_path, resample=True, sample_rate=aprs.SAMPLE_RATE):
@@ -83,7 +89,7 @@ def read_audio(audio_path, resample=True, sample_rate=aprs.SAMPLE_RATE):
     # Add channel dimension
     audio = tf.expand_dims(audio, axis=-1)
     
-    return audio
+    return audio #audio in a tensor type
 
 # def normalise_audio(audio):
 #     """Normalize the audio to a range [-1, 1]."""
